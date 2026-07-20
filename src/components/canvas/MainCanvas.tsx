@@ -26,18 +26,36 @@ const BLUE_TINT: TintConfig = { a: [0, 0.615, 1, 1], b: [0.392, 0.764, 1, 1], mi
 const HELLO_TINT: TintConfig = { a: [0.0, 0.4, 0.96, 0.9], b: [0.22, 0.58, 1, 0.9], mix: 1.05 };
 
 // cursor-triangle orientation: the model's tip points at this local angle in the XY plane
-// (derived empirically — a z-aim of 2.64 rad made the tip point straight down).
 const CURSOR_TIP_LOCAL = 2.07;
-const CURSOR_AIM = 2.36; // target world tip direction = up-left (mouse-pointer orientation)
+const CURSOR_AIM = 2.36;
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _qAim = new THREE.Quaternion();
 const _qRoll = new THREE.Quaternion();
 const _tipAxis = new THREE.Vector3();
 
-const FOOTER_CENTER = 1.0; // contact footer (last screen)
-// the Innovate section is ~8 viewports tall; the warp covers most of the scroll
-const WARP_IN = 0.24;
-const WARP_OUT = 0.62;
+const FOOTER_CENTER = 1.0;
+
+// ⭐ Responsive WARP values - works on all screen sizes
+const getWarpValues = () => {
+  if (typeof window === "undefined") return { in: 0.24, out: 0.62 };
+  const width = window.innerWidth;
+  // Mobile: stripes appear slightly later and fade out slightly later
+  if (width < 768) return { in: 0.15, out: 0.47 };
+  // Tablet
+  if (width < 1024) return { in: 0.24, out: 0.7 };
+  // Desktop
+  return { in: 0.24, out: 0.62 };
+};
+
+// ⭐ Responsive scale for hello.gltf
+const getHelloScale = () => {
+  if (typeof window === "undefined") return 30;
+  const width = window.innerWidth;
+  if (width < 480) return 12;
+  if (width < 768) return 18;
+  if (width < 1024) return 24;
+  return 30;
+};
 
 // fullscreen NDC vertex providing constant normals for the warp's fresnel term
 const WARP_VERT = /* glsl */ `
@@ -55,7 +73,7 @@ function WarpScreen({ matRef }: { matRef: React.RefObject<THREE.ShaderMaterial |
   const uniforms = useMemo(
     () => ({
       iResolution: { value: new THREE.Vector3(1, 1, 1) },
-      iTime: { value: 2.0 }, // fully "warped" → streaks at full intensity
+      iTime: { value: 2.0 },
       uScrollDuration: { value: 2.0 },
       uOpacity: { value: 0.0 },
       uAccentColor: { value: new THREE.Color("#009dff") },
@@ -120,7 +138,6 @@ function Scene() {
   const cursorRef = useRef<THREE.Group>(null);
   const footerRef = useRef<THREE.Group>(null);
   const warpMat = useRef<THREE.ShaderMaterial>(null);
-  // camera parallax state (A3 / WEBGL cK)
   const parallaxOffset = useRef(new THREE.Vector2(0, 0));
   const parallaxRot = useRef(new THREE.Vector2(0, 0));
   const camBase = useRef<THREE.Vector3 | null>(null);
@@ -138,7 +155,7 @@ function Scene() {
   );
   useEffect(() => () => fbo.dispose(), [fbo]);
 
-  // lens-flare bloom pass (the live's bright glow on the glass highlights + caustics)
+  // lens-flare bloom pass
   const flare = useMemo(() => new LensFlarePass({ ...LENS_FLARE_DEFAULTS }), []);
   useEffect(() => {
     flare.setParams({
@@ -148,9 +165,7 @@ function Scene() {
   }, [flare, dark]);
   useEffect(() => () => flare.dispose?.(), [flare]);
 
-  // GPU fluid: the scene ripples/displaces as the pointer moves (the signature mouse effect).
-  // Tuned to a GENTLE ripple — full-strength (strength .3 / force 3000) smears the hello into
-  // streaks on fast cursor moves; softened displacement + faster dissipation keeps it subtle.
+  // GPU fluid
   const fluid = useMemo(() => new FluidPushPass({ strength: 0.11, velocityScale: 0.5, velocityDissipation: 4 }), []);
   useEffect(() => {
     fluid.enabled = true;
@@ -159,7 +174,7 @@ function Scene() {
     return () => fluid.dispose?.();
   }, [fluid]);
 
-  // per-frame pointer driver (04-webgl.md §4f)
+  // per-frame pointer driver
   const pointerPx = useRef(new THREE.Vector2(-1, -1));
   const prevPointerPx = useRef(new THREE.Vector2(-1, -1));
   const pointerDelta = useRef(new THREE.Vector2(0, 0));
@@ -180,7 +195,6 @@ function Scene() {
       const px = uvx * state.size.width * dpr;
       const py = uvy * state.size.height * dpr;
       if (prevPointerPx.current.x >= 0) {
-        // clamp per-frame delta so a fast/teleporting cursor can't inject a huge splat
         const maxStep = 90 * dpr;
         pointerDelta.current.set(
           THREE.MathUtils.clamp(px - prevPointerPx.current.x, -maxStep, maxStep),
@@ -196,16 +210,11 @@ function Scene() {
     const now = state.clock.elapsedTime * 1000;
     if (speedSq > 1) lastMoveTime.current = now;
     const idle = now - lastMoveTime.current > 600;
-    // the fluid ripple/trail belongs to the hero; over the Innovate warp it smears
-    // the radial rays — disable it through the warp scroll range.
     const maxScroll = scrollEnv.getMaxScrollPx();
     const frac = maxScroll > 0 ? scrollEnv.getScrollTopPx() / maxScroll : 0;
-    const inWarp = frac > WARP_IN - 0.03 && frac < WARP_OUT + 0.03;
+    const warp = getWarpValues();
+    const inWarp = frac > warp.in - 0.03 && frac < warp.out + 0.03;
     const effectOn = !isMobile && !reduced && !idle && !inWarp;
-    // IMPORTANT: keep the pass itself ALWAYS enabled — it is the last pass in the
-    // composer (renderToScreen). Disabling it makes the composer skip it and leaves a
-    // STALE frame on screen. Only toggle the displacement/trail EFFECT; when off the
-    // pass just copies the scene through undistorted.
     fluid.enabled = true;
     fluid.setEffectEnabled(effectOn);
     fluid.setPointer(pointerPx.current);
@@ -224,8 +233,6 @@ function Scene() {
     gl.render(bgScene, camera);
     gl.setRenderTarget(prevRT);
 
-    // scroll-driven scene: each section's 3D content is centred when its section
-    // scrolls into view, then moves up & away (matches the live choreography).
     {
       const scrollTop = scrollEnv.getScrollTopPx();
       const vh = scrollEnv.getViewportHeightPx() || state.size.height || 1;
@@ -242,52 +249,53 @@ function Scene() {
       place(heroRef.current, 0, 0.05);
       place(footerRef.current, FOOTER_CENTER, 0.1);
 
-      // scroll-driven glass rotation (04-webgl.md §4c, scrollSyncFactor 0.72) + gentle idle float
       const tNow = state.clock.elapsedTime;
       const heroProg = THREE.MathUtils.clamp(scrollTop / vh, 0, 1);
       if (heroRef.current) {
         heroRef.current.rotation.y = heroProg * 0.45 * 0.72 + Math.sin(tNow * 0.4) * 0.03;
         heroRef.current.rotation.x = heroProg * -0.18 * 0.72 + Math.sin(tNow * 0.33) * 0.02;
       }
-      // cursor: outer group AIMS it down-right with a gentle bob; inner group BARREL-ROLLS
-      // around the plane's own nose axis (local X) — not a flat screen-plane spin.
-      // cursor TRIANGLE: aim the tip up-left (mouse-pointer orientation), then roll around the
-      // TIP axis (so the tip stays put while the glass rolls face↔edge) — matches the live.
       if (cursorRef.current) {
-        const aim = CURSOR_AIM + Math.sin(tNow * 0.4) * 0.06; // gentle bob
+        const aim = CURSOR_AIM + Math.sin(tNow * 0.4) * 0.06;
         _qAim.setFromAxisAngle(_zAxis, aim - CURSOR_TIP_LOCAL);
         _tipAxis.set(Math.cos(aim), Math.sin(aim), 0);
         _qRoll.setFromAxisAngle(_tipAxis, tNow * 1.3);
         cursorRef.current.quaternion.copy(_qRoll).multiply(_qAim);
       }
-      // paper-plane flies along a curved arc across the page as you scroll the hero→work range
-      if (cursorFlyRef.current) {
-        const flyT = THREE.MathUtils.clamp(scrollTop / (vh * 2.2), 0, 1.1);
-        cursorFlyRef.current.visible = flyT < 1.05;
-        cursorFlyRef.current.position.set(
-          12 - flyT * 26,
-          -7 - Math.sin(Math.min(flyT, 1) * Math.PI) * 2.5,
-          2,
-        );
-      }
+      
+      // ⭐⭐ CURSOR - ENDS EARLIER ON MOBILE ⭐⭐
+if (cursorFlyRef.current) {
+  const isMobile = state.size.width < 1024;
+  // ⭐ Desktop: vh * 3.5, Mobile: vh * 2.5 (faster on mobile)
+  const speed = isMobile ? 2.5 : 3.5;
+  const flyT = THREE.MathUtils.clamp(scrollTop / (vh * speed), 0, 1.2);
+  // ⭐ Desktop: disappears at 1.2, Mobile: disappears at 0.9 (earlier on mobile)
+  const maxFlyT = isMobile ? 0.9 : 1.2;
+  cursorFlyRef.current.visible = flyT < maxFlyT;
+  // Adjust position for mobile
+  const xPos = isMobile ? 6 - flyT * 12 : 12 - flyT * 26;
+  const yPos = isMobile ? -3 - Math.sin(Math.min(flyT, 1) * Math.PI) * 1.0 : -7 - Math.sin(Math.min(flyT, 1) * Math.PI) * 2.5;
+  cursorFlyRef.current.position.set(xPos, yPos, 2);
+}
+      
       if (footerRef.current) {
         const fprog = THREE.MathUtils.clamp((scrollTop - FOOTER_CENTER * max) / vh + 0.5, 0, 1);
         footerRef.current.rotation.y = (fprog - 0.5) * 0.4 * 0.72 + Math.sin(tNow * 0.35 + 1.0) * 0.025;
       }
 
-      // warp opacity + intensity follow the Innovate scroll range (density grows w/ scroll)
+      // ⭐ warp opacity with responsive values
       if (warpMat.current) {
         const p = scrollTop / max;
-        const fadeIn = THREE.MathUtils.smoothstep(p, WARP_IN, WARP_IN + 0.05);
-        const fadeOut = 1 - THREE.MathUtils.smoothstep(p, WARP_OUT - 0.05, WARP_OUT);
+        const warp = getWarpValues();
+        const fadeIn = THREE.MathUtils.smoothstep(p, warp.in, warp.in + 0.05);
+        const fadeOut = 1 - THREE.MathUtils.smoothstep(p, warp.out - 0.05, warp.out);
         warpMat.current.uniforms.uOpacity.value = Math.min(fadeIn, fadeOut);
-        const through = THREE.MathUtils.clamp((p - WARP_IN) / (WARP_OUT - WARP_IN), 0, 1);
-        warpMat.current.uniforms.iTime.value = through * 2.0; // 0→2 over the section
+        const through = THREE.MathUtils.clamp((p - warp.in) / (warp.out - warp.in), 0, 1);
+        warpMat.current.uniforms.iTime.value = through * 2.0;
       }
     }
 
-    // pointer-driven camera parallax (A3 / WEBGL cK): the whole scene shifts + tilts
-    // toward the cursor. strength 1.4, Y 0.6×, rotate 0.12, lag 0.18. (0.5-uv)*2 = -n.
+    // pointer-driven camera parallax
     if (!camBase.current) camBase.current = camera.position.clone();
     const pt = usePointerStore.getState();
     const wide = state.size.width >= 1024;
@@ -312,21 +320,15 @@ function Scene() {
     <>
       {createPortal(<BackgroundGradient dark={dark} layer={0} />, bgScene)}
       <BackgroundDisplay texture={fbo.texture} />
-      {/* scroll-choreographed 3D content (home only) */}
       {isHome && (
         <>
           <group ref={heroRef}>
-            <GlassModel url={withBase("/model/hello.gltf")} scale={30} layer={0} fbo={fbo} brightness={0.88} tint={{ ...HELLO_TINT, dark: dark ? 1 : 0 }} />
+            <GlassModel url={withBase("/model/hello.gltf")} scale={getHelloScale()} layer={0} fbo={fbo} brightness={0.88} tint={{ ...HELLO_TINT, dark: dark ? 1 : 0 }} />
           </group>
-          {/* glass paper-plane: flies along a scroll-linked CURVED ARC across the page (hero
-              lower-right → through the work section → exits) — NOT hero-bound. cursorFlyRef = arc
-              position; cursorRef = aim; cursorRollRef = barrel-roll around the nose axis. */}
           <group ref={cursorFlyRef} position={[12, -7, 2]}>
             <group ref={cursorRef}>
-              <GlassModel url={withBase("/model/cursor.glb")} scale={0.16} layer={0} fbo={fbo} brightness={0.78} tint={{ a: [0.05, 0.45, 1, 0.9], b: [0.3, 0.65, 1, 0.9], mix: 0.9, dark: dark ? 1 : 0 }} />
-            </group>
+<GlassModel url={withBase("/model/cursor.glb")} scale={typeof window !== 'undefined' && window.innerWidth < 768 ? 0.08 : 0.16} layer={0} fbo={fbo} brightness={0.78} tint={{ a: [0.05, 0.45, 1, 0.9], b: [0.3, 0.65, 1, 0.9], mix: 0.9, dark: dark ? 1 : 0 }} />            </group>
           </group>
-          {/* fixed fullscreen warp covering the whole Innovate scroll range */}
           <WarpScreen matRef={warpMat} />
           <group ref={footerRef} position={[0, -1, 0]}>
             <GlassModel url={withBase("/model/cnt.gltf")} scale={19} layer={0} fbo={fbo} brightness={1.0} tint={{ ...HELLO_TINT, dark: dark ? 1 : 0 }} />

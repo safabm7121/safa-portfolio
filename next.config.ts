@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const isPages = process.env.GITHUB_PAGES === "true";
-const basePath = isPages ? "/haoqi-design" : "";
+const basePath = isPages ? "/safa-portfolio" : "";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

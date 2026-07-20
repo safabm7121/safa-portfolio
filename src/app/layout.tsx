@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
-  title: "HAOQI©2026",
-  description: "Digital Product Designer & Builder © 2026",
+  title: "SAFA BEN MILED — Fashion Designer",
+  description: "Fashion Designer & Brand owner — Voidstone Studio",
 };
 
 export const viewport: Viewport = {
@@ -26,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <head>
+        <link rel="icon" type="image/svg+xml" href="/icon.svg" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>

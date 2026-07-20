@@ -59,26 +59,8 @@ export default function HobbiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-b1 pt-24 pb-16 px-4 md:px-8">
-      <div className="fixed top-0 left-0 right-0 z-40 p-4 md:p-6 bg-b1/90 backdrop-blur-sm border-b border-line">
-        <div className="max-w-7xl mx-auto flex justify-between items-center gap-4">
-          <Link 
-            href="/" 
-            className="inline-flex items-center gap-1 md:gap-2 text-l2 hover:text-l1 transition-colors group text-sm md:text-base"
-          >
-            <svg className="w-4 h-4 md:w-5 md:h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            BACK TO HOME
-          </Link>
-          
-          <h1 className="text-l1 text-sm md:text-base tracking-wider">PASSIONS & HOBBIES</h1>
-          
-          <Link href="/" className="text-l3 hover:text-l1 text-xs md:text-sm tracking-wider transition-colors">
-            HOME
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen  pt-24 pb-16 px-4 md:px-8">
+      
 
       <div className="max-w-7xl mx-auto relative z-10">
         <motion.div

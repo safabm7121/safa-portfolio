@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { StickerParticles } from "./StickerParticles";
+
 
 /**
  * Foreground WebGL layer (z-30) — renders the sticker particle system on top of
@@ -30,7 +30,7 @@ export function ForegroundCanvas() {
         style={{ width: "100%", height: "100%", pointerEvents: "none" }}
       >
         {/* live footer is sparse — a few stickers drifting, not a dense rain */}
-        <StickerParticles showAtProgress={0.82} ambientCount={8} burstCount={12} />
+        
       </Canvas>
     </div>
   );
