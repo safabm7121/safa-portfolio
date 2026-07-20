@@ -88,7 +88,7 @@ export default function Lanyard({
 
   if (!isReady) {
     return (
-      <div className="w-full h-full min-h-[500px] flex items-center justify-center bg-b1/20 rounded-2xl border border-line">
+      <div className="w-full h-full min-h-125 flex items-center justify-center bg-b1/20 rounded-2xl border border-line">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-l1 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-l2 text-sm">Loading 3D Card...</p>
@@ -98,7 +98,7 @@ export default function Lanyard({
   }
 
   return (
-    <div className="lanyard-wrapper w-full h-full min-h-[500px] relative">
+    <div className="lanyard-wrapper w-full h-full min-h-125 relative">
       <Canvas
         key={`lanyard-canvas-${isReady}`}
         camera={{ position, fov }}
@@ -226,7 +226,8 @@ function Band({
 
   const cardMap = useMemo(() => {
     try {
-      const baseMap = materials?.base?.map as THREE.Texture;
+      const baseMat = materials?.base as THREE.MeshStandardMaterial | undefined;
+      const baseMap = (baseMat?.map as THREE.Texture) || undefined;
       if (!frontImage && !backImage) return baseMap;
 
       const baseImg = baseMap?.image as any;
@@ -271,7 +272,7 @@ function Band({
       composite.needsUpdate = true;
       return composite;
     } catch (error) {
-      return materials?.base?.map as THREE.Texture;
+      return (materials?.base as THREE.MeshStandardMaterial)?.map as THREE.Texture;
     }
   }, [frontImage, backImage, imageFit, frontTex, backTex, materials]);
 
@@ -399,7 +400,7 @@ function Band({
               drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation())));
             }}
           >
-            <mesh geometry={nodes.card.geometry}>
+            <mesh geometry={(nodes.card as THREE.Mesh).geometry}>
               <meshPhysicalMaterial
                 map={cardMap}
                 map-anisotropy={16}
@@ -410,10 +411,10 @@ function Band({
               />
             </mesh>
             {nodes.clip && (
-              <mesh geometry={nodes.clip.geometry} material={materials.metal} material-roughness={0.3} />
+              <mesh geometry={(nodes.clip as THREE.Mesh).geometry} material={materials.metal} material-roughness={0.3} />
             )}
             {nodes.clamp && (
-              <mesh geometry={nodes.clamp.geometry} material={materials.metal} />
+              <mesh geometry={(nodes.clamp as THREE.Mesh).geometry} material={materials.metal} />
             )}
           </group>
         </RigidBody>
